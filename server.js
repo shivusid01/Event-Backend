@@ -167,22 +167,22 @@ app.use('/api/payments/webhook', (req, res, next) => {
   }
   next();
 });
-// app.get("/", (req, res) => {
-//   res.status(200).json({
-//     success: true,
-//     message: "Event Backend API is running 🚀",
-//     availableEndpoints: [
-//       "/api/health",
-//       "/api/auth",
-//       "/api/users",
-//       "/api/courses",
-//       "/api/payments",
-//       "/api/classes",
-//       "/api/notices",
-//       "/api/contact"
-//     ]
-//   });
-// });
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Event Backend API is running 🚀",
+    availableEndpoints: [
+      "/api/health",
+      "/api/auth",
+      "/api/users",
+      "/api/courses",
+      "/api/payments",
+      "/api/classes",
+      "/api/notices",
+      "/api/contact"
+    ]
+  });
+});
 
 /* ===================== HEALTH CHECK ===================== */
 
