@@ -119,6 +119,29 @@ mongoose.connection.on('disconnected', () => {
   console.log('⚠️ MongoDB disconnected');
 });
 
+
+
+let isConnected = false;
+
+async function connectToMongoDB() {
+  try{
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    isConnected = true;
+    console.log('🗄️ Connected to MongoDB')    ;
+  }catch(error){
+    console.error('❌ Error Connecting to MongoDb:', error);
+  }
+}
+
+app.use(async (req, res, next) => {
+  if (!isConnected) {
+    connectToMongoDB()
+  }
+  next();
+});
 /* ===================== ROUTES ===================== */
 
 // API Routes
@@ -327,7 +350,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 /* ===================== START SERVER ===================== */
 
-const PORT = process.env.PORT || 5000;
+// const PORT = process.env.PORT || 5000;
 
 // const server = app.listen(PORT, () => {
 //   console.log('='.repeat(50));
@@ -352,9 +375,9 @@ const PORT = process.env.PORT || 5000;
 //   console.log('='.repeat(50));
 // });
 
-app.get("/", (req, res) => {
-  res.send("Backend is running 🚀");
-});
+// app.get("/", (req, res) => {
+//   res.send("Backend is running 🚀");
+// });
 
 // Export for testing
 module.exports = app;
