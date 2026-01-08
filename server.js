@@ -167,6 +167,22 @@ app.use('/api/payments/webhook', (req, res, next) => {
   }
   next();
 });
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Event Backend API is running 🚀",
+    availableEndpoints: [
+      "/api/health",
+      "/api/auth",
+      "/api/users",
+      "/api/courses",
+      "/api/payments",
+      "/api/classes",
+      "/api/notices",
+      "/api/contact"
+    ]
+  });
+});
 
 /* ===================== HEALTH CHECK ===================== */
 
@@ -311,42 +327,42 @@ app.use((err, req, res, next) => {
 /* ===================== GRACEFUL SHUTDOWN ===================== */
 
 // Handle graceful shutdown
-const gracefulShutdown = () => {
-  console.log('🔄 Received shutdown signal, closing connections...');
+// const gracefulShutdown = () => {
+//   console.log('🔄 Received shutdown signal, closing connections...');
   
-  // Close server
-  server.close(() => {
-    console.log('✅ HTTP server closed');
+//   // Close server
+//   server.close(() => {
+//     console.log('✅ HTTP server closed');
     
-    // Close database connection
-    mongoose.connection.close(false, () => {
-      console.log('✅ MongoDB connection closed');
-      process.exit(0);
-    });
-  });
+//     // Close database connection
+//     mongoose.connection.close(false, () => {
+//       console.log('✅ MongoDB connection closed');
+//       process.exit(0);
+//     });
+//   });
   
-  // Force shutdown after 10 seconds
-  setTimeout(() => {
-    console.error('❌ Could not close connections in time, forcing shutdown');
-    process.exit(1);
-  }, 10000);
-};
+//   // Force shutdown after 10 seconds
+//   setTimeout(() => {
+//     console.error('❌ Could not close connections in time, forcing shutdown');
+//     process.exit(1);
+//   }, 10000);
+// };
 
-// Listen for shutdown signals
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
+// // Listen for shutdown signals
+// process.on('SIGTERM', gracefulShutdown);
+// process.on('SIGINT', gracefulShutdown);
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('💥 UNCAUGHT EXCEPTION:', err);
-  process.exit(1);
-});
+// // Handle uncaught exceptions
+// process.on('uncaughtException', (err) => {
+//   console.error('💥 UNCAUGHT EXCEPTION:', err);
+//   process.exit(1);
+// });
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
-  process.exit(1);
-});
+// // Handle unhandled promise rejections
+// process.on('unhandledRejection', (reason, promise) => {
+//   console.error('💥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
+//   process.exit(1);
+// });
 
 /* ===================== START SERVER ===================== */
 
