@@ -104,7 +104,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 /* ===================== DATABASE ===================== */
 
-connectDB();
+// connectDB();
 
 // Handle database connection events
 mongoose.connection.on('connected', () => {
@@ -241,17 +241,7 @@ app.get('/api/test/email', async (req, res) => {
 
 /* ===================== 404 HANDLER ===================== */
 
-app.use((req, res) => {
-  console.log(`❌ 404: ${req.method} ${req.originalUrl}`);
-  
-  res.status(404).json({
-    success: false,
-    message: 'API endpoint not found',
-    path: req.originalUrl,
-    method: req.method,
-    timestamp: new Date().toISOString(),
-  });
-});
+
 
 /* ===================== GLOBAL ERROR HANDLER ===================== */
 
@@ -396,4 +386,16 @@ app.use((err, req, res, next) => {
 // });
 
 // Export for testing
+
+app.use((req, res) => {
+  console.log(`❌ 404: ${req.method} ${req.originalUrl}`);
+  
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint not found',
+    path: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+  });
+});
 module.exports = app;
