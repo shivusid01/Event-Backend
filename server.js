@@ -352,5 +352,9 @@ const server = app.listen(PORT, () => {
   console.log('='.repeat(50));
 });
 
+app.get("/", (req, res) => {
+  res.send("Backend is running 🚀");
+});
+
 // Export for testing
 module.exports = app;
