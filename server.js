@@ -1,4 +1,4 @@
-// backend/server.js - SIMPLIFIED VERSION (No security packages required)
+// backend/server.js - UPDATED CORS CONFIGURATION
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -25,41 +25,29 @@ const app = express();
 
 /* ===================== MIDDLEWARE ===================== */
 
-// CORS Configuration
+// CORS Configuration - UPDATED
 const allowedOrigins = [
   process.env.APP_URL || 'http://localhost:5173',
   process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:5175',  // ✅ Added your current frontend port
   'http://localhost:5174',
   'http://localhost:3000',
-  'https://dashboard.razorpay.com'
+  'https://dashboard.razorpay.com',
+  'https://event-backend-brown.vercel.app',  // ✅ Added your backend URL as frontend
+  'http://event-backend-brown.vercel.app',    // ✅ Added HTTP version
+  'https://sharma-institute-frontend.vercel.app', // ✅ If you have separate frontend
+  'http://sharma-institute-frontend.vercel.app'   // ✅ HTTP version
 ];
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (e.g., mobile apps, curl, webhooks)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        return callback(null, true);
-      }
-      
-      // Log blocked origins for debugging
-      console.log(`🛡️ CORS blocked origin: ${origin}`);
-      return callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'X-Razorpay-Signature',
-      'Accept',
-      'Origin'
-    ],
-  })
-);
+// ✅ SIMPLIFIED CORS CONFIGURATION
+app.use(cors());
+
+// ✅ ALTERNATIVE: ALLOW ALL ORIGINS (For testing)
+// app.use(cors({
+//   origin: '*',
+//   credentials: true,
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+// }));
 
 // Handle preflight requests
 app.options('*', cors());
@@ -80,6 +68,13 @@ app.use(express.urlencoded({
 if (process.env.NODE_ENV === 'development') {
   app.use((req, res, next) => {
     console.log(`➡️ ${req.method} ${req.originalUrl}`);
+    
+    // Log CORS headers
+    console.log('🌐 Origin:', req.headers.origin);
+    console.log('📨 Headers:', {
+      'access-control-request-method': req.headers['access-control-request-method'],
+      'access-control-request-headers': req.headers['access-control-request-headers']
+    });
     
     // Log body for non-sensitive routes
     const sensitiveRoutes = ['/api/auth/login', '/api/auth/register'];
@@ -119,8 +114,6 @@ mongoose.connection.on('disconnected', () => {
   console.log('⚠️ MongoDB disconnected');
 });
 
-
-
 let isConnected = false;
 
 async function connectToMongoDB() {
@@ -130,18 +123,19 @@ async function connectToMongoDB() {
       useUnifiedTopology: true,
     });
     isConnected = true;
-    console.log('🗄️ Connected to MongoDB')    ;
+    console.log('🗄️ Connected to MongoDB');
   }catch(error){
-    console.error('❌ Error Connecting to MongoDb:', error);
+    console.error('❌ Error Connecting to MongoDB:', error);
   }
 }
 
 app.use(async (req, res, next) => {
   if (!isConnected) {
-    connectToMongoDB()
+    await connectToMongoDB();
   }
   next();
 });
+
 /* ===================== ROUTES ===================== */
 
 // API Routes
@@ -167,6 +161,9 @@ app.use('/api/payments/webhook', (req, res, next) => {
   }
   next();
 });
+
+/* ===================== ROOT ENDPOINT ===================== */
+
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
@@ -180,7 +177,24 @@ app.get("/", (req, res) => {
       "/api/classes",
       "/api/notices",
       "/api/contact"
-    ]
+    ],
+    cors: {
+      allowedOrigins: allowedOrigins,
+      status: "Active"
+    }
+  });
+});
+
+/* ===================== CORS TEST ENDPOINT ===================== */
+
+app.get('/api/cors-test', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'CORS Test Successful',
+    origin: req.headers.origin,
+    allowedOrigins: allowedOrigins,
+    headers: req.headers,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -194,6 +208,10 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime(),
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     environment: process.env.NODE_ENV,
+    cors: {
+      allowedOrigins: allowedOrigins,
+      originHeader: req.headers.origin
+    }
   });
 });
 
@@ -241,7 +259,17 @@ app.get('/api/test/email', async (req, res) => {
 
 /* ===================== 404 HANDLER ===================== */
 
-
+app.use((req, res) => {
+  console.log(`❌ 404: ${req.method} ${req.originalUrl}`);
+  
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint not found',
+    path: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 /* ===================== GLOBAL ERROR HANDLER ===================== */
 
@@ -300,6 +328,16 @@ app.use((err, req, res, next) => {
     });
   }
   
+  // Handle CORS errors
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      success: false,
+      message: 'CORS Error: Origin not allowed',
+      origin: req.headers.origin,
+      allowedOrigins: allowedOrigins,
+    });
+  }
+  
   // Error response
   const errorResponse = {
     success: false,
@@ -314,88 +352,4 @@ app.use((err, req, res, next) => {
   res.status(statusCode).json(errorResponse);
 });
 
-/* ===================== GRACEFUL SHUTDOWN ===================== */
-
-// Handle graceful shutdown
-// const gracefulShutdown = () => {
-//   console.log('🔄 Received shutdown signal, closing connections...');
-  
-//   // Close server
-//   server.close(() => {
-//     console.log('✅ HTTP server closed');
-    
-//     // Close database connection
-//     mongoose.connection.close(false, () => {
-//       console.log('✅ MongoDB connection closed');
-//       process.exit(0);
-//     });
-//   });
-  
-//   // Force shutdown after 10 seconds
-//   setTimeout(() => {
-//     console.error('❌ Could not close connections in time, forcing shutdown');
-//     process.exit(1);
-//   }, 10000);
-// };
-
-// // Listen for shutdown signals
-// process.on('SIGTERM', gracefulShutdown);
-// process.on('SIGINT', gracefulShutdown);
-
-// // Handle uncaught exceptions
-// process.on('uncaughtException', (err) => {
-//   console.error('💥 UNCAUGHT EXCEPTION:', err);
-//   process.exit(1);
-// });
-
-// // Handle unhandled promise rejections
-// process.on('unhandledRejection', (reason, promise) => {
-//   console.error('💥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
-//   process.exit(1);
-// });
-
-/* ===================== START SERVER ===================== */
-
-// const PORT = process.env.PORT || 5000;
-
-// const server = app.listen(PORT, () => {
-//   console.log('='.repeat(50));
-//   console.log(`🚀 Server running on port ${PORT}`);
-//   console.log(`📚 Coaching Institute Backend API`);
-//   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-//   console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-//   console.log(`💳 Razorpay: ${process.env.RAZORPAY_KEY_ID ? '✅ Configured' : '❌ Not configured'}`);
-//   console.log(`📧 Email: ${process.env.EMAIL_USER || process.env.SMTP_USER ? '✅ Configured' : '❌ Not configured'}`);
-//   console.log('='.repeat(50));
-//   console.log('📋 Available Routes:');
-//   console.log('  - /api/health               - Health check');
-//   console.log('  - /api/auth/*              - Authentication');
-//   console.log('  - /api/users/*             - User management');
-//   console.log('  - /api/courses/*           - Course management');
-//   console.log('  - /api/payments/*          - Payment processing');
-//   console.log('  - /api/classes/*           - Class management');
-//   console.log('  - /api/notices/*           - Notice management');
-//   console.log('  - /api/contact/*           - Contact form');
-//   console.log('  - /api/test/razorpay       - Test Razorpay config');
-//   console.log('  - /api/test/email          - Test Email config');
-//   console.log('='.repeat(50));
-// });
-
-// app.get("/", (req, res) => {
-//   res.send("Backend is running 🚀");
-// });
-
-// Export for testing
-
-app.use((req, res) => {
-  console.log(`❌ 404: ${req.method} ${req.originalUrl}`);
-  
-  res.status(404).json({
-    success: false,
-    message: 'API endpoint not found',
-    path: req.originalUrl,
-    method: req.method,
-    timestamp: new Date().toISOString(),
-  });
-});
 module.exports = app;
