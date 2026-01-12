@@ -13,30 +13,58 @@ const {
 /* ======================================================
    REGISTER
 ====================================================== */
+/* ======================================================
+   REGISTER (Updated with better error handling)
+====================================================== */
 const register = async (req, res, next) => {
   try {
     const { name, email, password, phone, course, grade } = req.body;
 
-    if (!name || !email || !password) {
+    // Clean and validate inputs
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanPhone = phone.trim();
+
+    if (!name || !cleanEmail || !password) {
       return res.status(400).json({
         success: false,
         message: 'Name, email and password are required',
       });
     }
 
-    const userExists = await User.findOne({ email });
-    if (userExists) {
+    // Check if user exists with email OR phone
+    const existingUser = await User.findOne({ 
+      $or: [
+        { email: cleanEmail },
+        { phone: cleanPhone }
+      ]
+    });
+
+    if (existingUser) {
+      // Identify which field caused duplicate
+      let errorField = 'email';
+      let errorMessage = 'User already exists with this email';
+      
+      if (existingUser.email === cleanEmail && existingUser.phone === cleanPhone) {
+        errorMessage = 'User already exists with this email and phone number';
+      } else if (existingUser.phone === cleanPhone) {
+        errorField = 'phone';
+        errorMessage = 'User already exists with this phone number';
+      }
+
       return res.status(400).json({
         success: false,
-        message: 'User already exists with this email',
+        message: errorMessage,
+        field: errorField,
+        duplicate: true
       });
     }
 
+    // Create user
     const user = await User.create({
       name,
-      email,
+      email: cleanEmail,
       password,
-      phone,
+      phone: cleanPhone,
       course,
       grade,
       role: 'student',
@@ -67,6 +95,31 @@ const register = async (req, res, next) => {
       message: 'Registration successful',
     });
   } catch (error) {
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error',
+        errors: messages
+      });
+    }
+    
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      const message = field === 'phone' 
+        ? 'Phone number already exists' 
+        : 'Email already exists';
+      
+      return res.status(400).json({
+        success: false,
+        message,
+        field,
+        duplicate: true
+      });
+    }
+    
     next(error);
   }
 };
