@@ -40,8 +40,10 @@ const allowedOrigins = [
 ];
 
 // ✅ SIMPLIFIED CORS CONFIGURATION
-app.use(cors());
-
+app.use(cors({
+  origin: ['http://localhost:5173', 'https://your-frontend.vercel.app'],
+  credentials: true
+}));
 // ✅ ALTERNATIVE: ALLOW ALL ORIGINS (For testing)
 // app.use(cors({
 //   origin: '*',

@@ -17,29 +17,55 @@ const register = async (req, res, next) => {
   try {
     const { name, email, password, phone, course, grade } = req.body;
 
-    if (!name || !email || !password) {
+    // ✅ Required fields
+    if (!name || !email || !password || !phone) {
       return res.status(400).json({
         success: false,
-        message: 'Name, email and password are required',
+        message: 'Name, email, password and phone are required',
       });
     }
 
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists with this email',
-      });
-    }
-
-    const user = await User.create({
-      name,
-      email,
-      password,
+    // ✅ Email normalization
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    console.log('📝 REGISTER ATTEMPT:', { 
+      name, 
+      email: normalizedEmail, 
       phone,
-      course,
-      grade,
+      course 
+    });
+
+    // ✅ Check existing user by email
+    const existingUser = await User.findOne({ 
+      email: normalizedEmail 
+    });
+    
+    if (existingUser) {
+      console.log('❌ Email already exists:', normalizedEmail);
+      return res.status(400).json({
+        success: false,
+        message: 'Email already registered',
+        field: 'email'
+      });
+    }
+
+    // ✅ Create user
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      password: password,
+      phone: phone.trim(),
+      course: course || '',
+      grade: grade || '',
       role: 'student',
+      status: 'active',
+      isVerified: false
+    });
+
+    console.log('✅ User created successfully:', {
+      id: user._id,
+      email: user.email,
+      enrollmentId: user.enrollmentId
     });
 
     const token = generateToken({
@@ -48,17 +74,8 @@ const register = async (req, res, next) => {
       email: user.email,
     });
 
+    // Remove password
     user.password = undefined;
-
-    // Send welcome email (non-blocking)
-    sendWelcomeEmail({
-      email: user.email,
-      name: user.name,
-      enrollmentId: user.enrollmentId,
-      course: user.course || 'Not assigned yet',
-    }).catch((err) =>
-      console.error('Welcome email failed:', err.message)
-    );
 
     res.status(201).json({
       success: true,
@@ -67,6 +84,17 @@ const register = async (req, res, next) => {
       message: 'Registration successful',
     });
   } catch (error) {
+    console.error('❌ REGISTRATION ERROR:', error);
+    
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({
+        success: false,
+        message: `Duplicate ${field} value entered`,
+        field: field
+      });
+    }
+    
     next(error);
   }
 };
@@ -78,7 +106,10 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    console.log('LOGIN BODY:', req.body); // 🔥 debug
+    console.log('🔐 LOGIN DEBUG: Request received', { 
+      email, 
+      hasPassword: !!password 
+    });
 
     if (!email || !password) {
       return res.status(400).json({
@@ -87,44 +118,51 @@ const login = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ email }).select('+password');
-
+    // ✅ Email को lowercase और trim करें
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    console.log('🔍 Searching for user with email:', normalizedEmail);
+    
+    // ✅ .select('+password') सही है
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
+    
     if (!user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('LOGIN DEBUG: user not found for email:', email);
-      }
+      console.log('❌ User not found for email:', normalizedEmail);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials',
+        message: 'Invalid email or password',
       });
     }
 
-    // For debugging in development, log whether password exists and comparison result
-    if (process.env.NODE_ENV === 'development') {
-      console.log('LOGIN DEBUG: user record found, has password:', !!user.password);
-    }
+    console.log('✅ User found:', {
+      id: user._id,
+      email: user.email,
+      hasPasswordField: !!user.password,
+      passwordLength: user.password?.length || 0
+    });
 
+    // ✅ Password comparison
+    console.log('🔑 Starting password comparison...');
     const isMatch = await user.comparePassword(password);
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('LOGIN DEBUG: password comparison result for', email, isMatch);
-    }
+    console.log('🔑 Password comparison result:', isMatch);
 
     if (!isMatch) {
+      console.log('❌ Password does not match for user:', user.email);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials',
+        message: 'Invalid email or password',
       });
     }
 
-    // Safe status check
+    // Check user status
     if (user.status && user.status !== 'active') {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been deactivated. Please contact admin.',
+        message: 'Your account has been deactivated',
       });
     }
 
+    // Update last login
     user.lastLogin = new Date();
     await user.save();
 
@@ -134,7 +172,10 @@ const login = async (req, res, next) => {
       email: user.email,
     });
 
+    // Remove password from response
     user.password = undefined;
+
+    console.log('✅ Login successful for:', user.email);
 
     res.status(200).json({
       success: true,
@@ -143,9 +184,15 @@ const login = async (req, res, next) => {
       message: 'Login successful',
     });
   } catch (error) {
+    console.error('🔥 LOGIN ERROR DETAILS:', {
+      message: error.message,
+      stack: error.stack,
+      email: req.body?.email
+    });
     next(error);
   }
 };
+
 
 /* ======================================================
    LOGOUT (GET + POST SAFE)
